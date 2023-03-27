@@ -1,7 +1,23 @@
 const User = require("../../models/User");
+const jwt = require('jsonwebtoken');
 const { AuthenicationError } = require('apollo-server-express');
-const { signToken } = require('../../utils/auth');
+const secret  = 'super secret'; 
+const expiration = '2h';
+const createdStamp = new Date().toISOString();
 
+// using jwt 
+function signToken(user) {
+    return jwt.sign({
+        id: user.id,
+        username: user.username,
+        email: user.email,
+    },
+    secret,
+    {
+        expiresIn: expiration,
+    },
+    );
+};
 
 module.exports = {
     // mutation to allow a user to login or to add a new user 
@@ -13,15 +29,23 @@ module.exports = {
                 }
             const correctPW = await user.isCorrectPassword(password);
                 if(!correctPW) {
-                    throw new AuthenicationError('Incorrect Credentials!');
+                    throw new AuthenicationError('Incorrect Username/Password!');
                 }
-            const token = signToken;
-            return { token, user };
-        },
-        addUser: async (parent, { username, email, password }) {
-            const user = await User.create({ username, email, password });
             const token = signToken(user);
-            return { token, user };
+            // returning users token and user data 
+            return { token, ...user._doc};
+        },
+        addUser: async (parent, { username, email, password }) => {
+            const user = await User.findOne({ username });
+            const newUser = new User({ username, email, password, createdAt: createdStamp });
+            // if statement to check is username is taken
+            if(user) {
+                throw new Error('Username is taken! Please choose another username.')
+            }
+            const token = signToken(data);
+            const data = await newUser.save();
+            // returning token for registered user along with id and newuser data
+            return { token, id: data._id, ...data._doc };
         }
     }
 };
