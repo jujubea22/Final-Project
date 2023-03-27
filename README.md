@@ -7,7 +7,7 @@ GitHub Repository:
 ## Usage Instructions
 - Visit deployed application
 - Signup to create a log in
-- Click "start workout" on the home page
+- Click "summit to share" on the home page
 - Share link with your friends so they can interact with you
 - Log in your workouts
 
