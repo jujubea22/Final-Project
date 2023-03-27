@@ -1,51 +1,98 @@
-const User = require("../../models/User");
-const jwt = require('jsonwebtoken');
-const { AuthenicationError } = require('apollo-server-express');
-const secret  = 'super secret'; 
-const expiration = '2h';
-const createdStamp = new Date().toISOString();
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const { UserInputError } = require("apollo-server");
 
-// using jwt 
-function signToken(user) {
-    return jwt.sign({
-        id: user.id,
-        username: user.username,
-        email: user.email,
-    },
-    secret,
+const {
+  validateRegisterInput,
+  validateLoginInput,
+} = require("../../utils/validators");
+const { SECRET_KEY } = require("../../config/connection");
+const User = require("../../models/User");
+
+function generateToken(user) {
+  return jwt.sign(
     {
-        expiresIn: expiration,
+      id: user.id,
+      email: user.email,
+      username: user.username,
     },
-    );
-};
+    SECRET_KEY,
+    { expiresIn: "1h" }
+  );
+}
 
 module.exports = {
-    // mutation to allow a user to login or to add a new user 
-    Mutation: {
-        login: async (parent, { username, password }) => {
-            const user = await User.findOne({ username });
-                if(!user) {
-                    throw new AuthenicationError('User Not Found!')
-                }
-            const correctPW = await user.isCorrectPassword(password);
-                if(!correctPW) {
-                    throw new AuthenicationError('Incorrect Username/Password!');
-                }
-            const token = signToken(user);
-            // returning users token and user data 
-            return { token, ...user._doc};
-        },
-        addUser: async (parent, { username, email, password }) => {
-            const user = await User.findOne({ username });
-            const newUser = new User({ username, email, password, createdAt: createdStamp });
-            // if statement to check is username is taken
-            if(user) {
-                throw new Error('Username is taken! Please choose another username.')
-            }
-            const token = signToken(data);
-            const data = await newUser.save();
-            // returning token for registered user along with id and newuser data
-            return { token, id: data._id, ...data._doc };
-        }
-    }
+  Mutation: {
+    async login(_, { username, password }) {
+      const { errors, valid } = validateLoginInput(username, password);
+
+      if (!valid) {
+        throw new UserInputError("Errors", { errors });
+      }
+
+      const user = await User.findOne({ username });
+
+      if (!user) {
+        errors.general = "User not found";
+        throw new UserInputError("User not found", { errors });
+      }
+
+      const match = await bcrypt.compare(password, user.password);
+      if (!match) {
+        errors.general = "Wrong crendetials";
+        throw new UserInputError("Wrong crendetials", { errors });
+      }
+
+      const token = generateToken(user);
+
+      return {
+        ...user._doc,
+        id: user._id,
+        token,
+      };
+    },
+    async register(
+      _,
+      { registerInput: { username, email, password, confirmPassword } }
+    ) {
+      // Validate user data
+      const { valid, errors } = validateRegisterInput(
+        username,
+        email,
+        password,
+        confirmPassword
+      );
+      if (!valid) {
+        throw new UserInputError("Errors", { errors });
+      }
+      // TODO: Make sure user doesnt already exist
+      const user = await User.findOne({ username });
+      if (user) {
+        throw new UserInputError("Username is taken", {
+          errors: {
+            username: "This username is taken",
+          },
+        });
+      }
+      // hash password and create an auth token
+      password = await bcrypt.hash(password, 12);
+
+      const newUser = new User({
+        email,
+        username,
+        password,
+        createdAt: new Date().toISOString(),
+      });
+
+      const res = await newUser.save();
+
+      const token = generateToken(res);
+
+      return {
+        ...res._doc,
+        id: res._id,
+        token,
+      };
+    },
+  },
 };

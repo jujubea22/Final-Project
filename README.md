@@ -44,7 +44,7 @@ GitHub Repository:
 
 ## Contributors
 - JEAN SANTIAGO
-- JULIA Devine
+- JULIA
 - NICOLE FALLIS
 - JASON FAUST
 - TATIANA RODRIGUEZ

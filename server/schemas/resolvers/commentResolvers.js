@@ -1,47 +1,50 @@
-const { AuthenicationError } = require('apollo-server-express');
-const signToken = require('../../utils/auth');
+const { AuthenticationError, UserInputError } = require("apollo-server");
 
-const Post = require('../../models/Post');
+const checkAuth = require("../../utils/auth");
+const Post = require("../../models/Post");
 
 module.exports = {
-    Mutation: {
-        newComment: async(parent, { postId, content }, context) => {
-            const { username } = signToken(context);
-            const post = await Post.findById(postId);
+  Mutation: {
+    createComment: async (_, { postId, body }, context) => {
+      const { username } = checkAuth(context);
+      if (body.trim() === "") {
+        throw new UserInputError("Empty comment", {
+          errors: {
+            body: "Comment body must not empty",
+          },
+        });
+      }
 
-            const newPost = { 
-                content, 
-                username, 
-                createdAt: new Date().toISOString()
-            }
-            if(post) {
-                post.comments.unshift(newPost);
-                await post.save()
-                return post;
-            } else {
-                throw new Error('No Post Found!')
-            };
-        },
-        deleteComment: async(parent, { postId, content }, context) => {
-            const { username } = signToken(context);
-            const post = await Post.findById(postId);
+      const post = await Post.findById(postId);
 
-            // if there is a post do the following
-            if(post) {
-                // finding the comments for a post from an array index and 
-                const commentArr = post.comments.findIndex((comment) => comment.id === commentId);
-                // if the comment belongs/was posted by the user
-                if(post.comments[commentArr].username === username) {
-                    // removing 1 element from the commentArr that belongs to the username
-                    post.comments.splice(commentArr, 1)
-                    await post.save();
-                    return post;
-                } else {
-                    throw new AuthenicationError('Not Authorized to Delete Comment!')
-                }
-            } else {
-                throw new Error('No Post Found!')
-            }
+      if (post) {
+        post.comments.unshift({
+          body,
+          username,
+          createdAt: new Date().toISOString(),
+        });
+        await post.save();
+        return post;
+      } else throw new UserInputError("Post not found");
+    },
+    async deleteComment(_, { postId, commentId }, context) {
+      const { username } = checkAuth(context);
+
+      const post = await Post.findById(postId);
+
+      if (post) {
+        const commentIndex = post.comments.findIndex((c) => c.id === commentId);
+
+        if (post.comments[commentIndex].username === username) {
+          post.comments.splice(commentIndex, 1);
+          await post.save();
+          return post;
+        } else {
+          throw new AuthenticationError("Action not allowed");
         }
-    }
+      } else {
+        throw new UserInputError("Post not found");
+      }
+    },
+  },
 };
