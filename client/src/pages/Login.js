@@ -21,6 +21,7 @@ function Login(props) {
     update(_, { data: { login: userData } }) {
       console.log("data", userData);
       context.login(userData);
+      //   props.history.push("/");
       navigate("/");
     },
     onError(err) {
